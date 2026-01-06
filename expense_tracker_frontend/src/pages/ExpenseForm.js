@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select, TextArea } from "../components/ui";
 import { toISODateInputValue } from "../lib/utils";
+import { getErrorMessage } from "../lib/error";
 
 function validate(payload) {
   const errors = {};
@@ -21,6 +22,7 @@ export function ExpenseForm({ categories, initialValue, onSubmit, onCancel, subm
 
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     if (!initialValue) return;
@@ -37,6 +39,8 @@ export function ExpenseForm({ categories, initialValue, onSubmit, onCancel, subm
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setSubmitError(null);
+
     const payload = { amount: Number(amount), category_id: categoryId || null, date, note: note.trim() };
     const eMap = validate(payload);
     setErrors(eMap);
@@ -51,6 +55,9 @@ export function ExpenseForm({ categories, initialValue, onSubmit, onCancel, subm
         setNote("");
         setDate(toISODateInputValue(new Date()));
       }
+    } catch (err) {
+      // Prevent the error from bubbling into a global handler / runtime overlay.
+      setSubmitError(getErrorMessage(err, "Failed to save expense."));
     } finally {
       setSubmitting(false);
     }
@@ -88,12 +95,13 @@ export function ExpenseForm({ categories, initialValue, onSubmit, onCancel, subm
         aria-invalid={Boolean(errors.date)}
       />
 
-      <TextArea
-        label="Note"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Optional note"
-      />
+      <TextArea label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note" />
+
+      {submitError && (
+        <div className="alert alertError" style={{ gridColumn: "1 / -1" }}>
+          {submitError}
+        </div>
+      )}
 
       <div className="row formActions">
         <Button type="submit" disabled={!canSubmit || submitting}>

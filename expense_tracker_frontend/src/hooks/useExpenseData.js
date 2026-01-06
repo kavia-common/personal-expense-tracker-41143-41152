@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { normalizeError } from "../lib/error";
 
 // PUBLIC_INTERFACE
 export function useExpenseData() {
@@ -21,7 +22,8 @@ export function useExpenseData() {
       setCategories(cats);
       setExpenses(exps);
     } catch (e) {
-      setError(e);
+      // Store a normalized object so UI can reliably show `error.message`.
+      setError(normalizeError(e));
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { Card, Button, EmptyState, Select, Input } from "../components/ui";
 import { useExpenseData } from "../hooks/useExpenseData";
 import { ExpenseForm } from "./ExpenseForm";
 import { formatCurrency } from "../lib/utils";
+import { getErrorMessage } from "../lib/error";
 
 // PUBLIC_INTERFACE
 export function ExpensesPage() {
@@ -15,6 +16,7 @@ export function ExpensesPage() {
   const [sortKey, setSortKey] = useState("date_desc"); // date_desc | date_asc | amount_desc | amount_asc
 
   const [editingId, setEditingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const filtered = useMemo(() => {
     let rows = expenses.slice();
@@ -35,10 +37,28 @@ export function ExpensesPage() {
 
   const editingExpense = useMemo(() => expenses.find((e) => e.id === editingId) || null, [expenses, editingId]);
 
+  const loadErrorMessage = error?.message || null;
+
   return (
     <div className="stackLg">
       <Card title="Add expense" subtitle="Record a transaction">
-        <ExpenseForm categories={categories} onSubmit={addExpense} />
+        <ExpenseForm
+          categories={categories}
+          onSubmit={async (payload) => {
+            setActionError(null);
+            try {
+              await addExpense(payload);
+            } catch (err) {
+              setActionError(getErrorMessage(err, "Failed to add expense."));
+              throw err;
+            }
+          }}
+        />
+        {actionError && (
+          <div className="alert alertError" style={{ marginTop: 12 }}>
+            {actionError}
+          </div>
+        )}
       </Card>
 
       <Card
@@ -67,8 +87,14 @@ export function ExpensesPage() {
       >
         {loading ? (
           <div className="muted">Loading…</div>
-        ) : error ? (
-          <div className="alert alertError">{error.message || "Failed to load."}</div>
+        ) : loadErrorMessage ? (
+          <div className="alert alertError">
+            {loadErrorMessage}
+            <div className="hint" style={{ marginTop: 10 }}>
+              If you're using Supabase, confirm tables <code>categories</code> and <code>expenses</code> exist and RLS
+              policies allow access for <code>auth.uid() = user_id</code>.
+            </div>
+          </div>
         ) : filtered.length === 0 ? (
           <EmptyState title="No expenses" description="Add an expense or adjust your filters." />
         ) : (
@@ -92,10 +118,26 @@ export function ExpensesPage() {
                     <td className="muted">{e.note || "—"}</td>
                     <td className="right">
                       <div className="row rowTight">
-                        <Button variant="ghost" onClick={() => setEditingId(e.id)}>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setActionError(null);
+                            setEditingId(e.id);
+                          }}
+                        >
                           Edit
                         </Button>
-                        <Button variant="danger" onClick={() => deleteExpense(e.id)}>
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            setActionError(null);
+                            try {
+                              await deleteExpense(e.id);
+                            } catch (err) {
+                              setActionError(getErrorMessage(err, "Failed to delete expense."));
+                            }
+                          }}
+                        >
                           Delete
                         </Button>
                       </div>
@@ -104,6 +146,12 @@ export function ExpensesPage() {
                 ))}
               </tbody>
             </table>
+
+            {actionError && (
+              <div className="alert alertError" style={{ marginTop: 12 }}>
+                {actionError}
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -113,7 +161,13 @@ export function ExpensesPage() {
           title="Edit expense"
           subtitle="Update and save"
           right={
-            <Button variant="ghost" onClick={() => setEditingId(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setActionError(null);
+                setEditingId(null);
+              }}
+            >
               Close
             </Button>
           }
@@ -124,10 +178,21 @@ export function ExpensesPage() {
             submitLabel="Save changes"
             onCancel={() => setEditingId(null)}
             onSubmit={async (payload) => {
-              await updateExpense(editingExpense.id, payload);
-              setEditingId(null);
+              setActionError(null);
+              try {
+                await updateExpense(editingExpense.id, payload);
+                setEditingId(null);
+              } catch (err) {
+                setActionError(getErrorMessage(err, "Failed to update expense."));
+                throw err;
+              }
             }}
           />
+          {actionError && (
+            <div className="alert alertError" style={{ marginTop: 12 }}>
+              {actionError}
+            </div>
+          )}
         </Card>
       )}
     </div>

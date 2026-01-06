@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Card, Button, Input, EmptyState } from "../components/ui";
 import { useExpenseData } from "../hooks/useExpenseData";
+import { getErrorMessage } from "../lib/error";
 
 // PUBLIC_INTERFACE
 export function CategoriesPage() {
@@ -11,14 +12,23 @@ export function CategoriesPage() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
 
+  const [actionError, setActionError] = useState(null);
+
   const canAdd = useMemo(() => newName.trim().length > 0, [newName]);
 
   async function handleAdd(e) {
     e.preventDefault();
     if (!canAdd) return;
-    await addCategory({ name: newName.trim() });
-    setNewName("");
+    setActionError(null);
+    try {
+      await addCategory({ name: newName.trim() });
+      setNewName("");
+    } catch (err) {
+      setActionError(getErrorMessage(err, "Failed to add category."));
+    }
   }
+
+  const loadErrorMessage = error?.message || null;
 
   return (
     <div className="stackLg">
@@ -31,13 +41,25 @@ export function CategoriesPage() {
             </Button>
           </div>
         </form>
+
+        {actionError && (
+          <div className="alert alertError" style={{ marginTop: 12 }}>
+            {actionError}
+          </div>
+        )}
       </Card>
 
       <Card title="Categories" subtitle="Rename or delete">
         {loading ? (
           <div className="muted">Loading…</div>
-        ) : error ? (
-          <div className="alert alertError">{error.message || "Failed to load."}</div>
+        ) : loadErrorMessage ? (
+          <div className="alert alertError">
+            {loadErrorMessage}
+            <div className="hint" style={{ marginTop: 10 }}>
+              If you're using Supabase, confirm tables <code>categories</code> and <code>expenses</code> exist and RLS
+              policies allow access for <code>auth.uid() = user_id</code>.
+            </div>
+          </div>
         ) : categories.length === 0 ? (
           <EmptyState title="No categories" description="Add your first category above." />
         ) : (
@@ -66,9 +88,14 @@ export function CategoriesPage() {
                         <Button
                           variant="primary"
                           onClick={async () => {
-                            await updateCategory(c.id, { name: renameValue.trim() || c.name });
-                            setRenamingId(null);
-                            setRenameValue("");
+                            setActionError(null);
+                            try {
+                              await updateCategory(c.id, { name: renameValue.trim() || c.name });
+                              setRenamingId(null);
+                              setRenameValue("");
+                            } catch (err) {
+                              setActionError(getErrorMessage(err, "Failed to rename category."));
+                            }
                           }}
                         >
                           Save
@@ -94,7 +121,17 @@ export function CategoriesPage() {
                         >
                           Rename
                         </Button>
-                        <Button variant="danger" onClick={() => deleteCategory(c.id)}>
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            setActionError(null);
+                            try {
+                              await deleteCategory(c.id);
+                            } catch (err) {
+                              setActionError(getErrorMessage(err, "Failed to delete category."));
+                            }
+                          }}
+                        >
                           Delete
                         </Button>
                       </>
@@ -103,6 +140,12 @@ export function CategoriesPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {actionError && !loading && (
+          <div className="alert alertError" style={{ marginTop: 12 }}>
+            {actionError}
           </div>
         )}
       </Card>
